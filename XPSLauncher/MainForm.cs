@@ -1,63 +1,28 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Newtonsoft.Json;
 using XPS;
-using XPS.Properties;
 
 namespace XPSLauncher;
 
 public class MainForm : Form
 {
-	private static readonly HttpClient client = new HttpClient();
-
 	private static readonly string currentVersion = "2.6.1";
 
 	private PrivateFontCollection privateFonts = new PrivateFontCollection();
 
-	private Dictionary<string, bool> downloadingVersions = new Dictionary<string, bool>
-	{
-		{ "2.2", false },
-		{ "2.1", false },
-		{ "2.0", false },
-		{ "1.9", false }
-	};
-
-	private Dictionary<string, bool> errorVersions = new Dictionary<string, bool>
-	{
-		{ "2.2", false },
-		{ "2.1", false },
-		{ "2.0", false },
-		{ "1.9", false }
-	};
-
-	private Dictionary<string, bool> launcheQueue = new Dictionary<string, bool>
-	{
-		{ "2.2", false },
-		{ "2.1", false },
-		{ "2.0", false },
-		{ "1.9", false }
-	};
-
 	private static bool settingsOpen = false;
 
-	private static bool settingCloseOnLoad = false;
+	private static bool settingCloseOnLoad = true;
 
 	private static bool settingAllowMultipleInstances = false;
 
-	private IContainer components;
-
-	private Button button1;
+    private Button button1;
 
 	private Button button2;
 
@@ -129,19 +94,11 @@ public class MainForm : Form
 
 	public MainForm()
 	{
-			if (!VerifiedPath())
-			{
-				MessageBox.Show("XPS failed to launch due to incorrect path detected. Uninstall XPS from known apps and then reinstall XPS.\n\nYou will need to move GDPS files manually if you want them. Your save files will be safe the entire time.", "Failed to verify path", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-				Environment.Exit(0);
-			}
-			InitializeComponent();
-			base.FormBorderStyle = FormBorderStyle.FixedSingle;
-			base.MaximizeBox = false;
-			pictureBox1.SendToBack();
-			ConvertOnLoad();
-			LoadFontFromFile();
-			CheckVersion();
-			CheckDownloaded();
+		InitializeComponent();
+		base.FormBorderStyle = FormBorderStyle.FixedSingle;
+		base.MaximizeBox = false;
+		pictureBox1.SendToBack();
+		LoadFontFromFile();
 	}
 
 	private void LoadFontFromFile()
@@ -169,26 +126,6 @@ public class MainForm : Form
 		label9.Text = "Launcher v" + Regex.Replace(currentVersion, "(\\.0)+$", "");
 	}
 
-	private void load22(object sender, EventArgs e)
-	{
-		launchGDPS("2.2");
-	}
-
-	private void load21(object sender, EventArgs e)
-	{
-		launchGDPS("2.1");
-	}
-
-	private void load20(object sender, EventArgs e)
-	{
-		launchGDPS("2.0");
-	}
-
-	private void load19(object sender, EventArgs e)
-	{
-		launchGDPS("1.9");
-	}
-
 	private void OpenUrl(string url)
 	{
 		try
@@ -206,110 +143,9 @@ public class MainForm : Form
 	}
 
 	private void launchGDPS(string version, bool forceOpen = false)
-	{
-		if (!button1.Visible || !button2.Visible || !button3.Visible || !button4.Visible)
-		{
-			return;
-        }
-		MessageBox.Show("Can't launch GDPS versions", "Can't launch GDPS versions", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return;
-		string executionPath = GetExecutionPath();
-		string text = "";
-		string path = Path.Combine(executionPath, "gdps", "1.9", "XPS-Proxy.exe");
-		if (Control.ModifierKeys == Keys.Shift)
-		{
-			ResetGDPS(version);
-		}
-		else
-		{
-			if (launcheQueue[version])
-			{
-				return;
-			}
-			if (downloadingVersions[version])
-			{
-				if (MessageBox.Show("Version " + version + " is currently being downloaded. Would you like to add it to the launch queue?", "Downloading " + version, MessageBoxButtons.YesNo, MessageBoxIcon.Asterisk) == DialogResult.Yes && downloadingVersions[version])
-				{
-					launcheQueue[version] = true;
-				}
-				return;
-			}
-			if (errorVersions[version])
-			{
-				MessageBox.Show("Version " + version + " had an issue while downloading and cannot be launched. Please create a support ticket in our Discord server for assistance.", "Error downloading " + version, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-				return;
-			}
-			switch (version)
-			{
-			default:
-				return;
-			case "2.2":
-				text = Path.Combine(executionPath, "gdps", "2.2", "XPS.exe");
-				break;
-			case "2.1":
-				text = Path.Combine(executionPath, "gdps", "2.1", "XPS.exe");
-				break;
-			case "2.0":
-				text = Path.Combine(executionPath, "gdps", "2.0", "XPS.exe");
-				break;
-			case "1.9":
-				text = Path.Combine(executionPath, "gdps", "1.9", "XPS.exe");
-				break;
-			}
-			if (File.Exists(text) && !downloadingVersions[version] && !errorVersions[version])
-			{
-				if (settingAllowMultipleInstances || !IsProcessOpen(text) || forceOpen)
-				{
-					StartProcess(text);
-					if (version == "1.9" && File.Exists(path))
-					{
-						StartProcess(path);
-					}
-					if (settingCloseOnLoad && !downloadingVersions["2.2"] && !downloadingVersions["2.1"] && !downloadingVersions["2.0"] && !downloadingVersions["1.9"])
-					{
-						Environment.Exit(0);
-					}
-				}
-				else if (MessageBox.Show("XPS is already running. Would you like to force open XPS?\n\nContinuing can result in save data loss.", "XPS already open", MessageBoxButtons.YesNo, MessageBoxIcon.Hand) == DialogResult.Yes)
-				{
-					launchGDPS(version, forceOpen: true);
-				}
-			}
-			else
-			{
-				MessageBox.Show("Error loading version " + version + ". Create a support ticket in the Discord and we will try to help you.", "Error loading " + version, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-			}
-		}
+    {
+        MessageBox.Show("You can't launch a XPS version as this is an Archive version of the Launcher.", "Can't launch GDPS versions", MessageBoxButtons.OK, MessageBoxIcon.Error);
 	}
-
-	private void ResetGDPS(string version, bool versionOverride = false)
-	{
-		if (downloadingVersions[version])
-		{
-			return;
-		}
-		if (versionOverride)
-		{
-			downloadingVersions[version] = true;
-			string path = Path.Combine(GetExecutionPath(), "gdps", version);
-			if (Directory.Exists(path))
-			{
-				Directory.Delete(path, recursive: true);
-			}
-			DownloadAndExtractFiles(version);
-		}
-		else if (MessageBox.Show("Are you sure you would like to reset " + version + "? This will delete all game files and replace them with fresh ones. This will not affect save files.", "Reset keybind pressed", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-		{
-			downloadingVersions[version] = true;
-			string path2 = Path.Combine(GetExecutionPath(), "gdps", version);
-			if (Directory.Exists(path2))
-			{
-				Directory.Delete(path2, recursive: true);
-			}
-			DownloadAndExtractFiles(version);
-		}
-	}
-
 	private void DiscordButton(object sender, EventArgs e)
 	{
 		OpenUrl("https://xps.lncvrt.xyz/discord");
@@ -356,297 +192,24 @@ public class MainForm : Form
 		Environment.Exit(0);
 	}
 
-	private void ResetConfigButton(object sender, EventArgs e)
-	{
-		ResetConfig();
-		MessageBox.Show("XPS Launcher has been reset to the default settings!", "Successfully reset XPS Launcher", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-	}
-
 	private void DarkThemeButton(object sender, EventArgs e)
 	{
-		WriteConfig("theme", 0);
-		LoadTheme();
+		LoadTheme(0);
 	}
 
 	private void AmoledThemeButton(object sender, EventArgs e)
 	{
-		WriteConfig("theme", 1);
-		LoadTheme();
+		LoadTheme(1);
 	}
 
 	private void PurpleThemeButton(object sender, EventArgs e)
 	{
-		WriteConfig("theme", 2);
-		LoadTheme();
+		LoadTheme(2);
 	}
 
 	private void RedThemeButton(object sender, EventArgs e)
 	{
-		WriteConfig("theme", 3);
-		LoadTheme();
-	}
-
-	private void OpenAppDataButton(object sender, EventArgs e)
-	{
-		string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "XPS");
-		if (!Directory.Exists(text))
-		{
-			Directory.CreateDirectory(text);
-		}
-		try
-		{
-			Process.Start("explorer.exe", text);
-		}
-		catch (Exception ex)
-		{
-			MessageBox.Show("Error opening the XPS folder. Create a support ticket in the Discord and we will try to help you.\n\nError message: " + ex.Message, "Error opening XPS folder", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-		}
-	}
-
-	private void OpenAppFolderButton(object sender, EventArgs e)
-	{
-		string executionPath = GetExecutionPath();
-		try
-		{
-			Process.Start("explorer.exe", executionPath);
-		}
-		catch (Exception ex)
-		{
-			MessageBox.Show("Error opening the XPS folder. Create a support ticket in the Discord and we will try to help you.\n\nError message: " + ex.Message, "Error opening XPS folder", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-		}
-	}
-
-	private async void CheckVersion()
-	{
-		return;
-		HttpClient client = new HttpClient();
-		try
-		{
-			_ = 1;
-			try
-			{
-				string text = "https://xps.lncvrt.xyz/getLatestWindowsVersion.php";
-				HttpResponseMessage obj = await client.GetAsync(text);
-				obj.EnsureSuccessStatusCode();
-				if ((await obj.Content.ReadAsStringAsync()).Trim() != currentVersion)
-				{
-					button1.UseWaitCursor = false;
-					button2.UseWaitCursor = false;
-					button3.UseWaitCursor = false;
-					button4.UseWaitCursor = false;
-					button5.UseWaitCursor = false;
-					button6.UseWaitCursor = false;
-					button1.Cursor = Cursors.No;
-					button2.Cursor = Cursors.No;
-					button3.Cursor = Cursors.No;
-					button4.Cursor = Cursors.No;
-					button5.Cursor = Cursors.No;
-					button6.Cursor = Cursors.No;
-					MessageBox.Show("New version released! Click \"OK\" to download the update", "Update Required", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-					OpenUrl("https://xps.lncvrt.xyz/download/windows");
-				}
-				else
-				{
-					button1.UseWaitCursor = false;
-					button2.UseWaitCursor = false;
-					button3.UseWaitCursor = false;
-					button4.UseWaitCursor = false;
-					button5.UseWaitCursor = false;
-					button6.UseWaitCursor = false;
-					button1.Cursor = Cursors.Hand;
-					button2.Cursor = Cursors.Hand;
-					button3.Cursor = Cursors.Hand;
-					button4.Cursor = Cursors.Hand;
-					button5.Cursor = Cursors.Hand;
-					button6.Cursor = Cursors.Hand;
-					button1.Click += load22;
-					button2.Click += load21;
-					button3.Click += load20;
-					button4.Click += load19;
-					button5.Click += OpenAppFolderButton;
-					button6.Click += OpenAppDataButton;
-					base.KeyPreview = true;
-					base.KeyPress += MainForm_KeyPress;
-				}
-			}
-			catch
-			{
-				MessageBox.Show("Error checking version. Check your internet connection or try again later", "Error", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-			}
-		}
-		finally
-		{
-			((IDisposable)client)?.Dispose();
-		}
-	}
-
-	private void CheckDownloaded()
-	{
-		return;
-		string executionPath = GetExecutionPath();
-		string[] array = new string[4] { "2.2", "2.1", "2.0", "1.9" };
-		foreach (string text in array)
-		{
-			string path = Path.Combine(executionPath, "gdps", text);
-			string path2 = Path.Combine(executionPath, "gdps", text, "XPS.exe");
-			if (!Directory.Exists(path) || !File.Exists(path2))
-			{
-				downloadingVersions[text] = true;
-				Directory.CreateDirectory(path);
-				DownloadAndExtractFiles(text);
-			}
-		}
-	}
-
-	private async void DownloadAndExtractFiles(string version)
-	{
-		return;
-		string executionPath = GetExecutionPath();
-		string zipPath = Path.Combine(executionPath, "pkg-" + version + ".zip");
-		string extractPath = Path.Combine(executionPath, "gdps", version);
-		string text = "https://xps.lncvrt.xyz/download/files/packages/win-" + version + ".zip";
-		try
-		{
-			HttpClient client = new HttpClient();
-			try
-			{
-				HttpResponseMessage val = await client.GetAsync(text, (HttpCompletionOption)1);
-				if (val.IsSuccessStatusCode)
-				{
-					using (FileStream fileStream = File.Create(zipPath))
-					{
-						await val.Content.CopyToAsync((Stream)fileStream);
-					}
-					if (Directory.Exists(extractPath))
-					{
-						DirectoryInfo directoryInfo = new DirectoryInfo(extractPath);
-						FileInfo[] files = directoryInfo.GetFiles();
-						for (int i = 0; i < files.Length; i++)
-						{
-							files[i].Delete();
-						}
-						DirectoryInfo[] directories = directoryInfo.GetDirectories();
-						for (int i = 0; i < directories.Length; i++)
-						{
-							directories[i].Delete(recursive: true);
-						}
-					}
-					ZipFile.ExtractToDirectory(zipPath, extractPath);
-					if (File.Exists(zipPath))
-					{
-						File.Delete(zipPath);
-					}
-					downloadingVersions[version] = false;
-					errorVersions[version] = false;
-					if (launcheQueue[version])
-					{
-						launcheQueue[version] = false;
-						launchGDPS(version);
-					}
-					return;
-				}
-				errorVersions[version] = true;
-				downloadingVersions[version] = false;
-				if (Directory.Exists(extractPath))
-				{
-					Directory.Delete(extractPath);
-				}
-				if (File.Exists(zipPath))
-				{
-					File.Delete(zipPath);
-				}
-				MessageBox.Show("Error downloading files for version " + version + ". Create a support ticket in the Discord and we will try to help you.", "Error downloading " + version, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-			}
-			finally
-			{
-				((IDisposable)client)?.Dispose();
-			}
-		}
-		catch (Exception ex)
-		{
-			errorVersions[version] = true;
-			downloadingVersions[version] = false;
-			if (Directory.Exists(extractPath))
-			{
-				Directory.Delete(extractPath);
-			}
-			if (File.Exists(zipPath))
-			{
-				File.Delete(zipPath);
-			}
-			MessageBox.Show("Error downloading files for version " + version + ". Create a support ticket in the Discord and we will try to help you.\n\nError message: " + ex.Message, "Error downloading " + version, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-		}
-	}
-
-	private static string GetExecutionPath()
-	{
-		return AppDomain.CurrentDomain.BaseDirectory;
-	}
-
-	private static void StartProcess(string path)
-	{
-		try
-		{
-			Process.Start(new ProcessStartInfo
-			{
-				FileName = path,
-				WorkingDirectory = Path.GetDirectoryName(path),
-				UseShellExecute = false
-			});
-		}
-		catch (Exception ex)
-		{
-			MessageBox.Show("Error launching that GDPS version. Create a support ticket in the Discord and we will try to help you.\n\nError message: " + ex.Message, "Error laucnhing GDPS", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-		}
-	}
-
-	private static bool VerifiedPath()
-	{
-		string directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-		if (directoryName.Equals("C:\\Program Files (x86)\\Xytrtiza\\XPS", StringComparison.OrdinalIgnoreCase) || directoryName.Equals("C:\\Program Files (x86)\\Xytriza\\XPS", StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	private void MainForm_KeyPress(object sender, KeyPressEventArgs e)
-	{
-		switch (e.KeyChar)
-		{
-		case '1':
-			button1.Focus();
-			button1.PerformClick();
-			break;
-		case '!':
-			button1.Focus();
-			ResetGDPS("2.2");
-			break;
-		case '2':
-			button2.Focus();
-			button2.PerformClick();
-			break;
-		case '@':
-			button2.Focus();
-			ResetGDPS("2.1");
-			break;
-		case '3':
-			button3.Focus();
-			button3.PerformClick();
-			break;
-		case '#':
-			button3.Focus();
-			ResetGDPS("2.0");
-			break;
-		case '4':
-			button4.Focus();
-			button4.PerformClick();
-			break;
-		case '$':
-			button4.Focus();
-			ResetGDPS("1.9");
-			break;
-		}
+		LoadTheme(3);
 	}
 
 	private void ToggleSettings()
@@ -735,147 +298,35 @@ public class MainForm : Form
 		}
 		button9.Focus();
 		settingsOpen = true;
-	}
+    }
 
-	private void ResetConfig()
-	{
-		string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Xytriza", "XPS");
-		string path2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "xytriza", "xpslauncher.json");
-		if (!Directory.Exists(path))
-		{
-			Directory.CreateDirectory(path);
-		}
-		if (File.Exists(path2))
-		{
-			File.Delete(path2);
-		}
-		if (settingsOpen && settingCloseOnLoad)
-		{
-			pictureBox13.Visible = false;
-			pictureBox11.Visible = true;
-		}
-		if (settingsOpen && settingAllowMultipleInstances)
-		{
-			pictureBox12.Visible = false;
-			pictureBox10.Visible = true;
-		}
-		settingAllowMultipleInstances = false;
-		settingAllowMultipleInstances = false;
-		SetThemeColor(Color.FromArgb(50, 50, 50));
-		dynamic val = new
-		{
-			lastVersion = currentVersion,
-			closeOnLoad = false,
-			allowMultipleInstances = false,
-			theme = 0
-		};
-		string contents = JsonConvert.SerializeObject(val, Formatting.Indented);
-		File.WriteAllText(path2, contents);
-	}
+    private void LoadTheme(int num)
+    {
+        try
+        {
+            switch (num)
+            {
+                case 1:
+                    SetThemeColor(Color.FromArgb(0, 0, 0));
+                    break;
+                case 2:
+                    SetThemeColor(Color.FromArgb(25, 0, 50));
+                    break;
+                case 3:
+                    SetThemeColor(Color.FromArgb(35, 0, 0));
+                    break;
+                default:
+                    SetThemeColor(Color.FromArgb(50, 50, 50));
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Error loading theme. Error message: " + ex.Message, "Error loading theme", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+        }
+    }
 
-	private void WriteConfig<T>(string key, T value)
-	{
-		dynamic val = ReadConfig();
-		val[key] = value;
-		string contents = JsonConvert.SerializeObject(val, Formatting.Indented);
-		File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "xytriza", "xpslauncher.json"), contents);
-	}
-
-	private void RemoveConfigValue(string key)
-	{
-		dynamic val = ReadConfig();
-		val.Remove(key);
-		string contents = JsonConvert.SerializeObject(val, Formatting.Indented);
-		File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "xytriza", "xpslauncher.json"), contents);
-	}
-
-	private dynamic ReadConfig()
-	{
-		string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "xytriza", "xpslauncher.json");
-		string obj = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "XPS");
-		string path2 = Path.Combine(obj, "launcher.json");
-		if (!File.Exists(path))
-		{
-			ResetConfig();
-		}
-		if (Directory.Exists(obj) && File.Exists(path2))
-		{
-			string contents = File.ReadAllText(path2);
-			File.WriteAllText(path, contents);
-			File.Delete(path2);
-		}
-		return JsonConvert.DeserializeObject(File.ReadAllText(path)) ?? new { };
-	}
-
-	public static bool IsProcessOpen(string filePath)
-	{
-		return Process.GetProcessesByName(Path.GetFileNameWithoutExtension(filePath)).Any((Process p) => p.MainModule.FileName.Equals(filePath, StringComparison.OrdinalIgnoreCase));
-	}
-
-	private void ConvertOnLoad()
-	{
-		try
-		{
-			dynamic val = ReadConfig();
-			if (val.lastVersion == "2.2.0")
-			{
-				RemoveConfigValue("closeOnExit");
-				WriteConfig("closeOnLoad", val.closeOnExit ?? ((object)false));
-				WriteConfig("allowMultipleInstances", value: false);
-				WriteConfig("theme", 0);
-				val.allowMultipleInstances = false;
-				val.closeOnLoad = val.closeOnExit ?? ((object)false);
-			}
-			settingCloseOnLoad = val.closeOnLoad;
-			settingAllowMultipleInstances = val.allowMultipleInstances;
-			if (settingsOpen && settingCloseOnLoad)
-			{
-				pictureBox13.Visible = false;
-				pictureBox11.Visible = true;
-			}
-			if (settingsOpen && settingAllowMultipleInstances)
-			{
-				pictureBox12.Visible = false;
-				pictureBox10.Visible = true;
-			}
-			LoadTheme();
-			WriteConfig("lastVersion", currentVersion);
-		}
-		catch
-		{
-			ResetConfig();
-		}
-	}
-
-	private void LoadTheme()
-	{
-		dynamic val = ReadConfig();
-		int num = val.theme;
-		try
-		{
-			switch (num)
-			{
-			case 1:
-				SetThemeColor(Color.FromArgb(0, 0, 0));
-				break;
-			case 2:
-				SetThemeColor(Color.FromArgb(25, 0, 50));
-				break;
-			case 3:
-				SetThemeColor(Color.FromArgb(35, 0, 0));
-				break;
-			default:
-				SetThemeColor(Color.FromArgb(50, 50, 50));
-				break;
-			}
-		}
-		catch (Exception ex)
-		{
-			MessageBox.Show("Error loading theme. Error message: " + ex.Message, "Error loading theme", MessageBoxButtons.OK, MessageBoxIcon.Hand);
-		}
-	}
-
-	private void SetThemeColor(Color color)
+    private void SetThemeColor(Color color)
 	{
 		BackColor = color;
 		pictureBox8.BackColor = color;
@@ -902,7 +353,6 @@ public class MainForm : Form
 			pictureBox13.Visible = true;
 			pictureBox11.Visible = false;
 		}
-		WriteConfig("closeOnLoad", settingCloseOnLoad);
 	}
 
 	private void ToggleMultiInstance(object sender = null, EventArgs e = null)
@@ -919,26 +369,6 @@ public class MainForm : Form
 			pictureBox12.Visible = true;
 			pictureBox10.Visible = false;
 		}
-		WriteConfig("allowMultipleInstances", settingAllowMultipleInstances);
-	}
-
-	private void ResetXPSBrowserButton(object sender, EventArgs e)
-	{
-		string path = Path.Combine(GetExecutionPath(), "XPS.exe.WebView2");
-		if (Directory.Exists(path))
-		{
-			Directory.Delete(path, recursive: true);
-		}
-		MessageBox.Show("XPS Browser has been reset to the default settings!", "Successfully reset XPS Browser", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-	}
-
-	protected override void Dispose(bool disposing)
-	{
-		if (disposing && components != null)
-		{
-			components.Dispose();
-		}
-		base.Dispose(disposing);
 	}
 
 	private void InitializeComponent()
@@ -993,7 +423,7 @@ public class MainForm : Form
 		((System.ComponentModel.ISupportInitialize)this.pictureBox2).BeginInit();
 		((System.ComponentModel.ISupportInitialize)this.pictureBox1).BeginInit();
 		base.SuspendLayout();
-		this.button1.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+		this.button1.Cursor = System.Windows.Forms.Cursors.No;
 		this.button1.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button1.ForeColor = System.Drawing.SystemColors.ButtonFace;
 		this.button1.Location = new System.Drawing.Point(320, 217);
@@ -1003,8 +433,7 @@ public class MainForm : Form
 		this.button1.TabIndex = 0;
 		this.button1.Text = "2.2";
 		this.button1.UseVisualStyleBackColor = true;
-		this.button1.UseWaitCursor = true;
-		this.button2.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+		this.button2.Cursor = System.Windows.Forms.Cursors.No;
 		this.button2.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button2.ForeColor = System.Drawing.SystemColors.ButtonFace;
 		this.button2.Location = new System.Drawing.Point(320, 338);
@@ -1014,7 +443,7 @@ public class MainForm : Form
 		this.button2.TabIndex = 1;
 		this.button2.Text = "2.1";
 		this.button2.UseVisualStyleBackColor = true;
-		this.button3.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+		this.button3.Cursor = System.Windows.Forms.Cursors.No;
 		this.button3.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button3.ForeColor = System.Drawing.SystemColors.ButtonFace;
 		this.button3.Location = new System.Drawing.Point(320, 460);
@@ -1024,8 +453,7 @@ public class MainForm : Form
 		this.button3.TabIndex = 2;
 		this.button3.Text = "2.0";
 		this.button3.UseVisualStyleBackColor = true;
-		this.button3.UseWaitCursor = true;
-		this.button4.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+		this.button4.Cursor = System.Windows.Forms.Cursors.No;
 		this.button4.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button4.ForeColor = System.Drawing.SystemColors.ButtonFace;
 		this.button4.Location = new System.Drawing.Point(320, 582);
@@ -1035,7 +463,6 @@ public class MainForm : Form
 		this.button4.TabIndex = 3;
 		this.button4.Text = "1.9";
 		this.button4.UseVisualStyleBackColor = true;
-		this.button4.UseWaitCursor = true;
 		this.label1.AutoSize = true;
 		this.label1.ForeColor = System.Drawing.SystemColors.ButtonFace;
 		this.label1.Location = new System.Drawing.Point(128, 148);
@@ -1044,7 +471,8 @@ public class MainForm : Form
 		this.label1.Size = new System.Drawing.Size(210, 16);
 		this.label1.TabIndex = 4;
 		this.label1.Text = "What version do you want to load?";
-		this.button5.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+        this.button5.Cursor = System.Windows.Forms.Cursors.No;
+        this.button5.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button5.ForeColor = System.Drawing.Color.White;
 		this.button5.Location = new System.Drawing.Point(253, 558);
 		this.button5.Margin = new System.Windows.Forms.Padding(4);
@@ -1053,9 +481,8 @@ public class MainForm : Form
 		this.button5.TabIndex = 14;
 		this.button5.Text = "Open App Folder";
 		this.button5.UseVisualStyleBackColor = true;
-		this.button5.UseWaitCursor = true;
 		this.button5.Visible = false;
-		this.button6.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+		this.button6.Cursor = System.Windows.Forms.Cursors.No;
 		this.button6.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button6.ForeColor = System.Drawing.Color.White;
 		this.button6.Location = new System.Drawing.Point(253, 614);
@@ -1065,7 +492,6 @@ public class MainForm : Form
 		this.button6.TabIndex = 15;
 		this.button6.Text = "Open AppData Folder";
 		this.button6.UseVisualStyleBackColor = true;
-		this.button6.UseWaitCursor = true;
 		this.button6.Visible = false;
 		this.label2.AutoSize = true;
 		this.label2.ForeColor = System.Drawing.SystemColors.ButtonFace;
@@ -1164,7 +590,7 @@ public class MainForm : Form
 		this.button7.UseVisualStyleBackColor = true;
 		this.button7.Visible = false;
 		this.button7.Click += new System.EventHandler(RestartButton);
-		this.button8.Cursor = System.Windows.Forms.Cursors.Hand;
+		this.button8.Cursor = System.Windows.Forms.Cursors.No;
 		this.button8.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button8.ForeColor = System.Drawing.Color.White;
 		this.button8.Location = new System.Drawing.Point(253, 726);
@@ -1175,7 +601,6 @@ public class MainForm : Form
 		this.button8.Text = "Reset Launcher";
 		this.button8.UseVisualStyleBackColor = true;
 		this.button8.Visible = false;
-		this.button8.Click += new System.EventHandler(ResetConfigButton);
 		this.label7.AutoSize = true;
 		this.label7.Cursor = System.Windows.Forms.Cursors.Hand;
 		this.label7.ForeColor = System.Drawing.SystemColors.ButtonFace;
@@ -1339,7 +764,7 @@ public class MainForm : Form
 		this.label9.Size = new System.Drawing.Size(0, 16);
 		this.label9.TabIndex = 35;
 		this.label9.Visible = false;
-		this.button9.Cursor = System.Windows.Forms.Cursors.Hand;
+		this.button9.Cursor = System.Windows.Forms.Cursors.No;
 		this.button9.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 		this.button9.ForeColor = System.Drawing.Color.White;
 		this.button9.Location = new System.Drawing.Point(252, 502);
@@ -1350,7 +775,6 @@ public class MainForm : Form
 		this.button9.Text = "Reset XPS Browser";
 		this.button9.UseVisualStyleBackColor = true;
 		this.button9.Visible = false;
-		this.button9.Click += new System.EventHandler(ResetXPSBrowserButton);
 		base.AutoScaleDimensions = new System.Drawing.SizeF(8f, 16f);
 		base.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 		this.BackColor = System.Drawing.Color.FromArgb(50, 50, 50);
